@@ -29,4 +29,29 @@ model users {
   password   String       @db.VarChar(255)
   user_roles user_roles[]
   isActive    Boolean  @default(false)
+
+  messages messages[] @relation("receivedMessages")
+
+  sentMessages messages[] @relation("sentMessages")
+  passwordResetTokens PasswordResetToken[]
+  
+}
+
+model messages {
+  id          Int      @id @default(autoincrement())
+  senderId    Int
+  recipientId Int
+  content     String
+  createdAt   DateTime @default(now())
+  sender      users    @relation("sentMessages", fields: [senderId], references: [id])
+  recipient   users    @relation("receivedMessages", fields: [recipientId], references: [id])
+}
+
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  expiresAt DateTime
+  user      users    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
