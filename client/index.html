@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Chat</title>
+</head>
+
+<body>
+    <h1>Chat</h1>
+    <div id="auth-section">
+        <input id="token" type="text" placeholder="Enter your JWT token" style="width: 300px;">
+        <button onclick="connect()">Connect</button>
+        <br><br>
+        <button onclick="showResetForm()">Forgot Password?</button>
+    </div>
+
+    <div id="reset-form" style="display: none;">
+        <input id="reset-email" type="email" placeholder="Enter your email">
+        <button onclick="requestPasswordReset()">Request Reset Link</button>
+    </div>
+
+    <div id="reset-password-form" style="display: none;">
+        <input id="reset-token" type="text" placeholder="Enter reset token">
+        <input id="new-password" type="password" placeholder="Enter new password">
+        <button onclick="resetPassword()">Reset Password</button>
+    </div>
+
+    <div id="chat-section" style="display: none;">
+        <input id="recipientId" type="number" placeholder="Recipient ID">
+        <input id="message" type="text" placeholder="Type a message">
+        <button onclick="sendMessage()">Send</button>
+    </div>
+    <div id="messages"></div>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+        let socket;
+
+        function connect() {
+            const token = document.getElementById('token').value;
+            if (!token) {
+                alert('Please enter a JWT token.');
+                return;
+            }
+
+            socket = io('http://localhost:3000', {
+                query: {
+                    token
+                }
+            });
+
+            socket.on('connect', () => {
+                console.log('Connected to Socket.IO');
+                document.getElementById('messages').innerHTML += '<p>Connected!</p>';
+                document.getElementById('auth-section').style.display = 'none';
+                document.getElementById('chat-section').style.display = 'block';
+            });
+
+            socket.on('message', (data) => {
+                document.getElementById('messages').innerHTML += `<p>From ${data.senderId}: ${data.content}</p>`;
+            });
+
+            socket.on('messageSent', (data) => {
+                document.getElementById('messages').innerHTML += `<p>Sent to ${data.recipientId}: ${data.content}</p>`;
+            });
+
+            socket.on('error', (data) => {
+                document.getElementById('messages').innerHTML += `<p style="color: red;">Error: ${data.error}</p>`;
+            });
+
+            socket.on('connect_error', (error) => {
+                document.getElementById('messages').innerHTML += `<p style="color: red;">Connection error: ${error.message}</p>`;
+            });
+
+            socket.on('disconnect', (reason) => {
+                document.getElementById('messages').innerHTML += `<p style="color: red;">Disconnected: ${reason}</p>`;
+            });
+        }
+
+        function sendMessage() {
+            const recipientId = document.getElementById('recipientId').value;
+            const content = document.getElementById('message').value;
+            if (!recipientId || !content) {
+                alert('Please enter both Recipient ID and a message.');
+                return;
+            }
+            if (socket && socket.connected) {
+                socket.emit('message', {
+                    recipientId,
+                    content
+                });
+                document.getElementById('message').value = '';
+            } else {
+                alert('Not connected to Socket.IO. Please connect first.');
+            }
+        }
+
+        function showResetForm() {
+            document.getElementById('reset-form').style.display = 'block';
+            document.getElementById('auth-section').style.display = 'none';
+        }
+
+        function requestPasswordReset() {
+            const email = document.getElementById('reset-email').value;
+            fetch('http://localhost:3000/api/auth/request-password-reset', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('messages').innerHTML += `<p>${data.message}</p>`;
+                    if (data.message === 'Password reset link sent to your email') {
+                        document.getElementById('reset-form').style.display = 'none';
+                        document.getElementById('reset-password-form').style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('messages').innerHTML += `<p style="color: red;">Error: ${error.message}</p>`;
+                });
+        }
+
+        function resetPassword() {
+            const token = document.getElementById('reset-token').value;
+            const newPassword = document.getElementById('new-password').value;
+            fetch('http://localhost:3000/api/auth/reset-password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        token,
+                        newPassword
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('messages').innerHTML += `<p>${data.message}</p>`;
+                    if (data.message === 'Password successfully reset') {
+                        document.getElementById('reset-password-form').style.display = 'none';
+                        document.getElementById('auth-section').style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('messages').innerHTML += `<p style="color: red;">Error: ${error.message}</p>`;
+                });
+        }
+
+        window.onload = () => {
+            const token = document.getElementById('token').value;
+            if (token) connect();
+        };
+    </script>
+</body>
+
+</html>
