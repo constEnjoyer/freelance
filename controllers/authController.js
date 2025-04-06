@@ -14,7 +14,7 @@ const generateAccessToken = (id, roles) => {
 const generateTokenAndLink = (userId, purpose = 'activate') => {
     const token = jwt.sign({ id: userId, purpose }, process.env.SECRET_KEY, { expiresIn: '1h' });
     if (purpose === 'reset') {
-        return `http://localhost:3000/reset-password?token=${token}`; // Ссылка для сброса
+        return `http://localhost:3000/api/auth/reset-password?token=${token}`; // Ссылка для сброса
     }
     return `http://localhost:3000/api/auth/activate?token=${token}`; // Ссылка для активации
 };
@@ -121,13 +121,21 @@ class AuthController {
     // Логин пользователя
     async login(req, res) {
         try {
-            const { identifier, password } = req.body; // Изменено на identifier для гибкости
+            const { username, password } = req.body;
+            console.log('Attempting login with:', username);
+
             const user = await prisma.users.findFirst({
-                where: { OR: [{ username: identifier }, { email: identifier }] },
+                where: {
+                    OR: [
+                        { username: { equals: username, mode: 'insensitive' } },
+                        { email: { equals: username, mode: 'insensitive' } }
+                    ]
+                },
                 include: { user_roles: { include: { roles: true } } },
             });
 
             if (!user) {
+                console.log('User not found in DB');
                 return res.status(400).json({ message: 'User not found' });
             }
 
@@ -142,10 +150,29 @@ class AuthController {
 
             const roles = user.user_roles.map(ur => ur.roles.value);
             const token = generateAccessToken(user.id, roles);
-            return res.json({ token });
+
+            // Сохранение токена в куки
+            res.cookie('jwt', token, {
+                httpOnly: true, // Защита от XSS
+                secure: process.env.NODE_ENV === 'production', // HTTPS в продакшене
+                maxAge: 24 * 60 * 60 * 1000, // 24 часа в миллисекундах
+                sameSite: 'Strict', // Защита от CSRF
+            });
+
+            return res.json({ message: 'Login successful' });
         } catch (error) {
             console.log('Login error:', error);
-            res.status(400).json({ message: 'Login error' });
+            res.status(500).json({ message: 'Server error' });
+        }
+    }
+
+    async logout(req, res) {
+        try {
+            res.clearCookie('jwt');
+            return res.json({ message: 'Logout successful' });
+        } catch (error) {
+            console.log('Logout error:', error);
+            res.status(500).json({ message: 'Server error' });
         }
     }
 

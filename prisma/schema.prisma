@@ -29,11 +29,18 @@ model users {
   password   String       @db.VarChar(255)
   user_roles user_roles[]
   isActive    Boolean  @default(false)
+  profilePicture      String?      @db.VarChar(255) // Ссылка на фото профиля (опционально)
+  bio                 String?      @db.VarChar(255) // Описание профиля (опционально)
+  age                 Int?         // Возраст (опционально)
 
   messages messages[] @relation("receivedMessages")
 
   sentMessages messages[] @relation("sentMessages")
   passwordResetTokens PasswordResetToken[]
+
+  userFriendships Friendship[] @relation("userFriendships")
+  friendFriendships Friendship[] @relation("friendFriendships")
+  posts Post[] @relation("UserPosts")
   
 }
 
@@ -54,4 +61,36 @@ model PasswordResetToken {
   userId    Int
   expiresAt DateTime
   user      users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Friendship {
+  id          Int      @id @default(autoincrement())
+  userId      Int      // ID пользователя
+  friendId    Int      // ID друга
+  status      String   @default("pending") // pending/accepted/rejected
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Связи
+  user        users    @relation("userFriendships", fields: [userId], references: [id])
+  friend      users    @relation("friendFriendships", fields: [friendId], references: [id])
+
+  @@unique([userId, friendId]) // Уникальная пара пользователь-друг
+}
+
+model Post {
+  id             Int      @id @default(autoincrement())
+  title          String   // Название публикации (например, "Продаётся уютный дом")
+  description    String   // Описание публикации
+  imageUrl       String?  // Ссылка на фото (опционально)
+  bedrooms       Int?     // Количество спален
+  bathrooms      Int?     // Количество туалетов
+  rooms          Int?     // Количество комнат
+  squareMeters   Float?   // Площадь в квадратных метрах
+  price          Float    // Цена
+  location       String   // Местоположение (например, "Москва, ул. Ленина")
+  authorId       Int      // ID автора поста
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  author         users    @relation("UserPosts", fields: [authorId], references: [id], onDelete: Cascade)
 }
